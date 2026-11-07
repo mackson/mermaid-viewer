@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mermaid Viewer</title>
+<style>
+:root {
+  --color-bg: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #f7f8fa;
+  --color-bg-hover: #f0f2f5;
+  --color-border: #e4e7ec;
+  --color-border-strong: #cfd4dc;
+  --color-text: #1a1f2e;
+  --color-text-muted: #5b6478;
+  --color-text-subtle: #8a93a6;
+  --color-primary: #635bff;
+  --color-primary-hover: #4f47e0;
+  --color-primary-soft: #ece9ff;
+  --color-code-bg: #f5f6f8;
+  --color-danger: #ef4444;
+  --color-danger-soft: #fdecec;
+  --color-success: #10b981;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --topbar-height: 56px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --shadow-md: 0 4px 12px rgba(20, 24, 32, 0.08);
+}
+[data-theme="dark"] {
+  --color-bg: #0f1219;
+  --color-bg-elevated: #161a24;
+  --color-bg-subtle: #1a1f2e;
+  --color-bg-hover: #232936;
+  --color-border: #2a3142;
+  --color-border-strong: #3a4358;
+  --color-text: #e6e9ef;
+  --color-text-muted: #a3aabe;
+  --color-text-subtle: #6b7388;
+  --color-primary: #8a82ff;
+  --color-primary-hover: #a39bff;
+  --color-primary-soft: #2a2858;
+  --color-code-bg: #232936;
+  --color-danger: #ff8a8a;
+  --color-danger-soft: #3a2029;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+button, input, textarea, select { font-family: inherit; }
+
+/* === Topbar === */
+.topbar {
+  height: var(--topbar-height);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 20;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.brand .dot {
+  width: 10px; height: 10px; border-radius: 3px;
+  background: var(--color-primary);
+}
+.spacer { flex: 1 1 auto; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.btn:hover { background: var(--color-primary-soft); color: var(--color-primary); border-color: var(--color-primary); }
+.btn:active { transform: scale(0.97); }
+.btn.icon { width: 34px; padding: 0; justify-content: center; font-size: 15px; }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.primary:hover { background: var(--color-primary-hover); color: #fff; }
+
+select.btn { appearance: none; padding-right: 26px; background-image: none; max-width: 190px; }
+
+/* === Layout === */
+.layout {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: var(--editor-width, 420px) 6px 1fr;
+  min-height: 0;
+}
+.layout.editor-hidden { grid-template-columns: 0 0 1fr; }
+.layout.editor-hidden .pane-editor, .layout.editor-hidden .splitter { display: none; }
+
+.pane-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-bg-subtle);
+  border-right: 1px solid var(--color-border);
+}
+.pane-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-subtle);
+}
+#editor {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 14px 16px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+.editor-status {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.editor-status .ok { color: var(--color-success); }
+.editor-status .err { color: var(--color-danger); }
+
+.splitter {
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  inset: 0 2px;
+  background: var(--color-border);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.splitter:hover::after, .splitter.dragging::after { opacity: 1; background: var(--color-primary); }
+
+/* === Preview (motor de panzoom) === */
+.diagram-wrap {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  background: var(--color-bg);
+}
+.diagram-wrap.is-fullscreen { background: var(--color-bg); }
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background-image:
+    linear-gradient(var(--color-bg-hover) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-bg-hover) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+.stage:active { cursor: grabbing; }
+.stage > svg {
+  display: block;
+  max-width: none !important;
+  user-select: none;
+}
+.diagram-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+.diagram-toolbar button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  transition: background 0.12s, color 0.12s;
+}
+.diagram-toolbar button:hover { background: var(--color-primary-soft); color: var(--color-primary); }
+.diagram-toolbar button:active { transform: scale(0.92); }
+.diagram-toolbar .sep { height: 1px; background: var(--color-border); margin: 3px 2px; }
+
+.zoom-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 10;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-md);
+}
+
+.error-box {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  right: 16px;
+  max-height: 45%;
+  overflow: auto;
+  z-index: 11;
+  padding: 12px 14px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  box-shadow: var(--shadow-md);
+}
+.error-box[hidden] { display: none; }
+.error-box strong { display: block; margin-bottom: 6px; font-family: var(--font-sans); }
+
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: var(--color-primary-soft);
+  border: 2px dashed var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 16px;
+}
+.drop-hint[hidden] { display: none; }
+
+.empty-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-subtle);
+  font-size: 14px;
+  pointer-events: none;
+}
+.empty-hint[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: 40% 6px 1fr; }
+  .layout.editor-hidden { grid-template-columns: 1fr; grid-template-rows: 0 0 1fr; }
+  .splitter { cursor: row-resize; }
+  .brand span.label { display: none; }
+  .btn .label { display: none; }
+  .btn { padding: 0 10px; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="dot"></span><span class="label">Mermaid Viewer</span></div>
+
+  <button class="btn" id="btn-open" title="Abrir arquivo .mmd / .md"><span>📂</span><span class="label">Abrir</span></button>
+  <input type="file" id="file-input" accept=".mmd,.mermaid,.md,.markdown,.txt" hidden>
+
+  <select class="btn" id="examples" title="Exemplos">
+    <option value="">Exemplos…</option>
+    <option value="flow">Flowchart</option>
+    <option value="sequence">Sequence</option>
+    <option value="state">State</option>
+    <option value="er">ER</option>
+    <option value="gantt">Gantt</option>
+    <option value="class">Class</option>
+  </select>
+
+  <div class="spacer"></div>
+
+  <button class="btn" id="btn-copy" title="Copiar codigo"><span>⧉</span><span class="label">Copiar</span></button>
+  <button class="btn" id="btn-svg" title="Baixar SVG"><span>⬇</span><span class="label">SVG</span></button>
+  <button class="btn" id="btn-png" title="Baixar PNG"><span>⬇</span><span class="label">PNG</span></button>
+  <button class="btn icon" id="btn-editor" title="Mostrar/ocultar editor" aria-label="Mostrar/ocultar editor">◧</button>
+  <button class="btn icon" id="btn-theme" title="Alternar tema" aria-label="Alternar tema">◐</button>
+</header>
+
+<main class="layout" id="layout">
+  <section class="pane-editor">
+    <div class="pane-head">Codigo Mermaid</div>
+    <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+    <div class="editor-status">
+      <span id="status">pronto</span>
+      <span id="meta"></span>
+    </div>
+  </section>
+
+  <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"></div>
+
+  <section class="diagram-wrap" id="wrap">
+    <div class="stage" id="stage"></div>
+    <div class="empty-hint" id="empty-hint">Cole ou abra um diagrama Mermaid</div>
+    <div class="diagram-toolbar">
+      <button type="button" data-act="in" title="Aproximar" aria-label="Aproximar">+</button>
+      <button type="button" data-act="out" title="Afastar" aria-label="Afastar">−</button>
+      <button type="button" data-act="reset" title="Ajustar a tela" aria-label="Ajustar a tela">⊙</button>
+      <div class="sep"></div>
+      <button type="button" data-act="fs" title="Tela cheia" aria-label="Tela cheia">⛶</button>
+    </div>
+    <div class="zoom-badge" id="zoom-badge">100%</div>
+    <div class="error-box" id="error-box" hidden></div>
+    <div class="drop-hint" id="drop-hint" hidden>Solte o arquivo .mmd aqui</div>
+  </section>
+</main>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+const LS_THEME = 'mermaid-viewer-theme';
+const LS_CODE = 'mermaid-viewer-code';
+const LS_WIDTH = 'mermaid-viewer-editor-width';
+
+const html = document.documentElement;
+const layout = document.getElementById('layout');
+const editor = document.getElementById('editor');
+const stage = document.getElementById('stage');
+const wrap = document.getElementById('wrap');
+const statusEl = document.getElementById('status');
+const metaEl = document.getElementById('meta');
+const errorBox = document.getElementById('error-box');
+const emptyHint = document.getElementById('empty-hint');
+const zoomBadge = document.getElementById('zoom-badge');
+const dropHint = document.getElementById('drop-hint');
+const toolbar = document.querySelector('.diagram-toolbar');
+
+const EXAMPLES = {
+  flow: `flowchart LR
+  A[Cliente] --> B{Autenticado?}
+  B -- Nao --> C[401 Unauthorized]
+  B -- Sim --> D[Controller]
+  D --> E[UseCase.handle]
+  E --> F[(Service)]
+  F --> G[Insurance Hub]`,
+  sequence: `sequenceDiagram
+  autonumber
+  participant App as Exa App
+  participant BFF as insurance-bff
+  participant Hub as insurance-hub
+  App->>BFF: POST /quotes
+  BFF->>Hub: POST /quotes
+  Hub-->>BFF: 201 quoteId
+  BFF-->>App: 201 quoteId`,
+  state: `stateDiagram-v2
+  [*] --> Cotado
+  Cotado --> Emitido: pagamento aprovado
+  Cotado --> Expirado: 7 dias
+  Emitido --> Cancelado: solicitacao
+  Cancelado --> [*]`,
+  er: `erDiagram
+  CUSTOMER ||--o{ ORDER : realiza
+  ORDER ||--|{ QUOTE : contem
+  QUOTE }o--|| PLAN : referencia
+  CUSTOMER {
+    string customerId
+    string document
+  }`,
+  gantt: `gantt
+  title Roadmap
+  dateFormat YYYY-MM-DD
+  section Backend
+  Contratos da lib :done, a1, 2026-01-06, 10d
+  Gateway          :active, a2, after a1, 15d
+  section QA
+  Testes E2E       :a3, after a2, 8d`,
+  class: `classDiagram
+  class CreateQuoteUseCase {
+    +handle(input) Promise
+  }
+  class IQuoteService {
+    <<interface>>
+    +create(request)
+  }
+  CreateQuoteUseCase ..> IQuoteService`,
+};
+
+const DEFAULT_CODE = EXAMPLES.sequence;
+
+// === Tema ===
+const storedTheme = localStorage.getItem(LS_THEME);
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+let theme = storedTheme || (prefersDark ? 'dark' : 'light');
+html.setAttribute('data-theme', theme);
+
+const initMermaid = () => {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: theme === 'dark' ? 'dark' : 'default',
+    securityLevel: 'strict',
+    fontFamily: getComputedStyle(document.body).getPropertyValue('--font-sans'),
+    flowchart: { useMaxWidth: false, htmlLabels: false },
+    sequence: { useMaxWidth: false },
+    gantt: { useMaxWidth: false },
+    er: { useMaxWidth: false },
+    class: { useMaxWidth: false, htmlLabels: false },
+  });
+};
+initMermaid();
+
+document.getElementById('btn-theme').addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', theme);
+  localStorage.setItem(LS_THEME, theme);
+  initMermaid();
+  render({ keepView: true });
+});
+
+// === Panzoom ===
+let scale = 1, x = 0, y = 0;
+let naturalWidth = 800, naturalHeight = 480;
+const MIN = 0.05, MAX = 20;
+
+const getTarget = () => stage.querySelector('svg');
+
+const apply = () => {
+  const t = getTarget();
+  if (!t) return;
+  t.style.transformOrigin = '0 0';
+  t.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  zoomBadge.textContent = Math.round(scale * 100) + '%';
+};
+
+const fit = () => {
+  const cw = stage.clientWidth;
+  const ch = stage.clientHeight;
+  if (!cw || !ch || !naturalWidth || !naturalHeight) return;
+  const s = Math.min(cw / naturalWidth, ch / naturalHeight) * 0.95;
+  scale = Math.max(MIN, Math.min(MAX, s));
+  x = (cw - naturalWidth * scale) / 2;
+  y = (ch - naturalHeight * scale) / 2;
+  apply();
+};
+
+const zoomAt = (factor, cx, cy) => {
+  const newScale = Math.max(MIN, Math.min(MAX, scale * factor));
+  const ratio = newScale / scale;
+  x = cx - (cx - x) * ratio;
+  y = cy - (cy - y) * ratio;
+  scale = newScale;
+  apply();
+};
+
+stage.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = stage.getBoundingClientRect();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  zoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
+}, { passive: false });
+
+let dragging = false, sx = 0, sy = 0;
+stage.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  dragging = true;
+  sx = e.clientX - x;
+  sy = e.clientY - y;
+  e.preventDefault();
+});
+window.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  x = e.clientX - sx;
+  y = e.clientY - sy;
+  apply();
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+stage.addEventListener('dblclick', fit);
+
+let touchStart = null;
+const touchDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+stage.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    dragging = true;
+    sx = e.touches[0].clientX - x;
+    sy = e.touches[0].clientY - y;
+  } else if (e.touches.length === 2) {
+    dragging = false;
+    const rect = stage.getBoundingClientRect();
+    touchStart = {
+      dist: touchDist(e.touches), scale,
+      cx: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left,
+      cy: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top,
+    };
+  }
+}, { passive: true });
+stage.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 1 && dragging) {
+    x = e.touches[0].clientX - sx;
+    y = e.touches[0].clientY - sy;
+    apply();
+    e.preventDefault();
+  } else if (e.touches.length === 2 && touchStart) {
+    const d = touchDist(e.touches);
+    const factor = (d / touchStart.dist) * (touchStart.scale / scale);
+    zoomAt(factor, touchStart.cx, touchStart.cy);
+    e.preventDefault();
+  }
+}, { passive: false });
+stage.addEventListener('touchend', () => { dragging = false; touchStart = null; });
+
+toolbar.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
+  switch (btn.dataset.act) {
+    case 'in': zoomAt(2.0, cx, cy); break;
+    case 'out': zoomAt(0.5, cx, cy); break;
+    case 'reset': fit(); break;
+    case 'fs':
+      if (!document.fullscreenElement) wrap.requestFullscreen?.();
+      else document.exitFullscreen?.();
+      break;
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  wrap.classList.toggle('is-fullscreen', document.fullscreenElement === wrap);
+  setTimeout(fit, 100);
+});
+window.addEventListener('resize', () => requestAnimationFrame(fit));
+
+// === Render ===
+let renderSeq = 0;
+
+const showError = (message) => {
+  errorBox.innerHTML = '';
+  const title = document.createElement('strong');
+  title.textContent = 'Erro de sintaxe';
+  errorBox.appendChild(title);
+  errorBox.appendChild(document.createTextNode(message));
+  errorBox.hidden = false;
+  statusEl.innerHTML = '<span class="err">erro</span>';
+};
+
+const clearError = () => { errorBox.hidden = true; };
+
+const render = async ({ keepView = false } = {}) => {
+  const code = editor.value;
+  localStorage.setItem(LS_CODE, code);
+  metaEl.textContent = code.split('\n').length + ' linhas · ' + code.length + ' chars';
+
+  if (!code.trim()) {
+    stage.innerHTML = '';
+    emptyHint.hidden = false;
+    clearError();
+    statusEl.textContent = 'vazio';
+    return;
+  }
+  emptyHint.hidden = true;
+
+  const id = 'mmd-' + (++renderSeq);
+  const started = performance.now();
+  try {
+    const { svg, bindFunctions } = await mermaid.render(id, code);
+    stage.innerHTML = svg;
+    const el = stage.querySelector('svg');
+    bindFunctions?.(el);
+
+    const vb = el.viewBox?.baseVal;
+    naturalWidth = (vb && vb.width) || el.getBoundingClientRect().width || 800;
+    naturalHeight = (vb && vb.height) || el.getBoundingClientRect().height || 480;
+    el.setAttribute('width', naturalWidth);
+    el.setAttribute('height', naturalHeight);
+    el.style.maxWidth = 'none';
+
+    clearError();
+    statusEl.innerHTML = '<span class="ok">ok</span> · ' + Math.round(performance.now() - started) + 'ms';
+
+    if (keepView) apply();
+    else requestAnimationFrame(() => requestAnimationFrame(fit));
+  } catch (err) {
+    document.getElementById(id)?.remove();
+    document.getElementById('d' + id)?.remove();
+    showError(err?.str || err?.message || String(err));
+  }
+};
+
+let debounce;
+editor.addEventListener('input', () => {
+  clearTimeout(debounce);
+  statusEl.textContent = 'renderizando…';
+  debounce = setTimeout(() => render(), 350);
+});
+
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart, en = editor.selectionEnd;
+    editor.setRangeText('  ', s, en, 'end');
+    editor.dispatchEvent(new Event('input'));
+  }
+});
+
+// === Abrir arquivo (local, nada sai do navegador) ===
+const extractMermaid = (text, fileName) => {
+  if (/\.(md|markdown)$/i.test(fileName || '')) {
+    const blocks = [...text.matchAll(/```mermaid\s*\n([\s\S]*?)```/g)].map((m) => m[1].trim());
+    if (blocks.length) return blocks.join('\n\n');
+  }
+  return text;
+};
+
+const loadFile = (file) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    editor.value = extractMermaid(String(reader.result), file.name);
+    render();
+  };
+  reader.readAsText(file);
+};
+
+const fileInput = document.getElementById('file-input');
+document.getElementById('btn-open').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  if (fileInput.files?.[0]) loadFile(fileInput.files[0]);
+  fileInput.value = '';
+});
+
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; dropHint.hidden = false; });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; dropHint.hidden = true; } });
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  dropHint.hidden = true;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) loadFile(file);
+});
+
+// === Exemplos ===
+const examplesSelect = document.getElementById('examples');
+examplesSelect.addEventListener('change', () => {
+  const key = examplesSelect.value;
+  if (!key) return;
+  editor.value = EXAMPLES[key];
+  examplesSelect.value = '';
+  render();
+});
+
+// === Exportar ===
+const download = (blob, name) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const serializeSvg = () => {
+  const el = getTarget();
+  if (!el) return null;
+  const clone = el.cloneNode(true);
+  clone.style.transform = '';
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', naturalWidth);
+  clone.setAttribute('height', naturalHeight);
+  const bg = getComputedStyle(document.body).backgroundColor;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('width', '100%');
+  rect.setAttribute('height', '100%');
+  rect.setAttribute('fill', bg);
+  clone.insertBefore(rect, clone.firstChild);
+  return new XMLSerializer().serializeToString(clone);
+};
+
+document.getElementById('btn-svg').addEventListener('click', () => {
+  const svg = serializeSvg();
+  if (!svg) return;
+  download(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), 'diagrama.svg');
+});
+
+document.getElementById('btn-png').addEventListener('click', () => {
+  const svg = serializeSvg();
+  if (!svg) return;
+  const scaleFactor = 2;
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = naturalWidth * scaleFactor;
+    canvas.height = naturalHeight * scaleFactor;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => blob && download(blob, 'diagrama.png'), 'image/png');
+  };
+  img.onerror = () => showError('Nao foi possivel converter o SVG em PNG neste navegador.');
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+});
+
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(editor.value);
+    statusEl.innerHTML = '<span class="ok">codigo copiado</span>';
+  } catch {
+    statusEl.innerHTML = '<span class="err">clipboard bloqueado</span>';
+  }
+});
+
+// === Editor toggle + splitter ===
+document.getElementById('btn-editor').addEventListener('click', () => {
+  layout.classList.toggle('editor-hidden');
+  setTimeout(fit, 60);
+});
+
+const splitter = document.getElementById('splitter');
+const storedWidth = Number(localStorage.getItem(LS_WIDTH));
+if (storedWidth >= 240) layout.style.setProperty('--editor-width', storedWidth + 'px');
+
+let resizing = false;
+splitter.addEventListener('mousedown', (e) => {
+  resizing = true;
+  splitter.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+window.addEventListener('mousemove', (e) => {
+  if (!resizing) return;
+  const width = Math.max(240, Math.min(window.innerWidth - 280, e.clientX));
+  layout.style.setProperty('--editor-width', width + 'px');
+});
+window.addEventListener('mouseup', () => {
+  if (!resizing) return;
+  resizing = false;
+  splitter.classList.remove('dragging');
+  document.body.style.userSelect = '';
+  const current = parseInt(layout.style.getPropertyValue('--editor-width'), 10);
+  if (current) localStorage.setItem(LS_WIDTH, String(current));
+  fit();
+});
+
+// === Atalhos ===
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); render(); }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); document.getElementById('btn-editor').click(); }
+  if (e.key === 'Escape' && document.fullscreenElement) document.exitFullscreen?.();
+});
+
+// === Boot ===
+editor.value = localStorage.getItem(LS_CODE) ?? DEFAULT_CODE;
+render();
+</script>
+</body>
+</html>
